@@ -481,6 +481,7 @@ class WindowThumbnail {
         this.index = params.index;
 
         this.get_thumb_id = 0;
+        this._refreshDebounceId = 0;  // Debounce timer for refreshThumbnail
 
         this.metaWindowActor = null;
         this.thumbnailPadding = 16;
@@ -712,7 +713,27 @@ class WindowThumbnail {
         return (size + padding + margin) * this.groupState.windowCount;
     }
 
+    // Debounced wrapper - prevents rapid-fire thumbnail refreshes
+    // Performance fix: Multiple size-changed events are batched into one refresh
     refreshThumbnail() {
+        // Cancel any pending debounced refresh
+        if (this._refreshDebounceId > 0) {
+            Mainloop.source_remove(this._refreshDebounceId);
+            this._refreshDebounceId = 0;
+        }
+
+        // Debounce: wait 100ms before actually refreshing
+        // This prevents multiple rapid calls (e.g., from size-changed signals)
+        // from causing excessive CPU/GPU load
+        this._refreshDebounceId = Mainloop.timeout_add(100, () => {
+            this._refreshDebounceId = 0;
+            this._doRefreshThumbnail();
+            return false;  // GLib.SOURCE_REMOVE
+        });
+    }
+
+    // Actual thumbnail refresh implementation
+    _doRefreshThumbnail() {
         if (this.willUnmount
             || !this.groupState
             || !this.groupState.app
@@ -844,6 +865,12 @@ class WindowThumbnail {
     destroy() {
         this.willUnmount = true;
         if (!this.groupState) return;
+
+        // Clean up debounce timer to prevent memory leak
+        if (this._refreshDebounceId > 0) {
+            Mainloop.source_remove(this._refreshDebounceId);
+            this._refreshDebounceId = 0;
+        }
 
         if (this.get_thumb_id > 0) {
             Mainloop.source_remove(this.get_thumb_id);
