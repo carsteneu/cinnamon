@@ -312,8 +312,12 @@ class WindowGraph {
     }
 
     show() {
-        this.workspaceGraph.graphArea.add_child(this.drawingArea);
-        this.workspaceGraph.graphArea.add_child(this._icon);
+        if (this.drawingArea.get_parent() == null) {
+            this.workspaceGraph.graphArea.add_child(this.drawingArea);
+        }
+        if (this._icon.get_parent() == null) {
+            this.workspaceGraph.graphArea.add_child(this._icon);
+        }
     }
 
     on_minimize() {
